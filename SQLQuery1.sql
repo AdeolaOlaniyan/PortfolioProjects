@@ -102,14 +102,27 @@ From #PercentPopulationVaccinated
 
 --Creating view to store for Visualization
 
-Create View PercentPopulationVaccinated as
-Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
-,SUM(CONVERT(int,vac.new_vaccinations)) OVER (Partition by dea.location Order by dea.location, dea.Date) as CummulativePeopleVaccinated
+Select dea.continent, dea.location, dea.date, dea.population
+, MAX(vac.new_vaccinations) as CummulativePeopleVaccinated
 From PortfolioProjectSql..CovidDeaths$ dea
 Join PortfolioProjectSql..CovidVaccinations$ vac
      on dea.location = vac.location
 	 and dea.date = vac.date
 Where dea.continent is not null
+Group by dea.continent, dea.location, dea.date, dea.population 
+Order by 1,2,3
 
-Select *
-From PercentPopulationVaccinated
+
+--Removing the ones that are not included in the above queries and European Union is part od Europe.
+Select location, SUM(cast(new_deaths as int)) as TotalDeathCount 
+From PortfolioProjectSql..CovidDeaths$
+Where continent is null 
+and location not in ('World', 'European Union', 'International')
+Group by location
+Order by TotalDeathCount desc
+
+--Countries with the highest percentage of infection compared to population
+Select location, Population, MAX(total_cases) as highestinfectioncount, MAX((total_cases/population))*100 as PercentPopulationInfected
+From PortfolioProjectSql..CovidDeaths$
+Group by location, population
+Order by PercentPopulationInfected desc
