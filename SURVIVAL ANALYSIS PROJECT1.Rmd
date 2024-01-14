@@ -1,0 +1,180 @@
+---
+title: "PROJECT"
+author: "Adeola Mary Olaniyan"
+date: "2/29/2020"
+output: html_document
+---
+
+```{r}
+myeloma.data <- read.csv("C:/Users/adeol/Downloads/myeloma-data.csv", header=FALSE)
+
+names(myeloma.data) <- c("patient-number", "stime", "status", "age", "sex", "bun", "ca", "hb", "p-cells", "protein")
+
+library(survival)
+library(tidyverse)
+head(myeloma.data)
+dim(myeloma.data)
+fit.1 <- survfit(Surv(stime,status)~sex,conf.type="log-log", data = myeloma.data)
+summary(fit.1)
+```
+
+3i. comparing the survival experience for the sex, where, male is 1 and female is 2.
+the logrank test comparing the survival experience of the two groups
+
+Let   H0:h1(t) =h2(t)
+Let   HA:h1(t)≠h2(t)
+@ ∝=0.05
+Test statistic
+```{r}
+survdiff(Surv(stime,status)~sex, rho= 0, data = myeloma.data )
+```
+
+Since P-value =0.8 is greater than 0.05, we therefore fail to reject the null hypothesis and conclude that there is no significant in the sex.
+
+ the Gehan/Breslow generalized Wilcoxon test comparing the two groups sex
+Let   H0:h1(t) =h2(t)
+Let   HA:h1(t)≠h2(t)
+@ ∝=0.05
+Test statistic
+
+```{r}
+survdiff(Surv(stime,status)~sex, rho= 1, data = myeloma.data)
+```
+
+Since P-value =1 is greater than 0.05, we therefore fail to reject the null hypothesis and conclude that there is no significant in sex.
+
+#ii. comparing the survival experience for the protein, for the two groups.
+# the logrank test comparing the survival experience of the two groups.
+Let   H0:h1(t) =h2(t)
+Let   HA:h1(t)≠h2(t)
+@ ∝=0.05
+Test statistic
+```{r}
+survdiff(Surv(stime,status)~protein, rho= 0, data = myeloma.data )
+```
+
+
+Since P-value =0.2 is less than 0.05, we therefore reject the null hypothesis and conclude that there is significant in protein.
+
+the Gehan/Breslow generalized Wilcoxon test comparing the two groups
+Let   H0:h1(t) =h2(t)
+Let   HA:h1(t)≠h2(t)
+@ ∝=0.05
+Test statistic
+
+
+```{r}
+survdiff(Surv(stime,status)~protein, rho= 1, data = myeloma.data)
+```
+Since P-value =0.1 is less than 0.05, we therefore reject the null hypothesis and conclude that there is significant in protein.
+
+4.The maximum likelihood estimate of the probability of discontinuation by 52 weeks.
+```{r}
+library(readxl)
+IUD_data1 <- read_excel("Book4.xlsx")
+names(IUD_data1)<- c ("time","status")
+fit.IUD_data1 <- survreg(Surv(time,status)~ 1, dist = "weibull",data = IUD_data1)
+summary(fit.IUD_data1)
+```
+
+
+5 The ovarian cancer data set
+
+```{r}
+ovariancan <-  read.csv("C:/Users/adeol/Downloads/homework2.txt", sep="")
+
+names(ovariancan)
+age <-ovariancan[,1] 
+grade <-ovariancan[,2] 
+stage<-ovariancan[,3]
+resi<-ovariancan[,4]
+treatment<-ovariancan[,5]
+time<-ovariancan[,6]
+delta<-ovariancan[,7]
+```
+
+5a Non-parametric estimate of the survival function for each grade and  the plots to check graphically whether the exponential or the Weibull distributions seem reasonable.
+```{r}
+library(survminer)
+library(survival)
+allgrades<-survfit(Surv(time,delta)~grade,conf.type="log-log",data=ovariancan)
+summary(allgrades)
+
+ggsurvplot(allgrades)
+ggsurvplot(allgrades, fun = "cumhaz")
+```
+
+Grade 1 has the best prognosis because the survival probability versus time graph shows that the survival time is higher, while Grade 3 has the worst prognosis because the same graph indicates that the survival time is lower.
+
+The exponential distribution seems reasonable because the cummulative hazard graph is linear to time.
+
+5b. An exponential model separately within each grade.
+
+
+```{r}
+library(survival)
+
+grade1 <- ovariancan[ovariancan$grade == 1,]
+grade2 <- ovariancan[ovariancan$grade == 2,]
+grade3 <- ovariancan[ovariancan$grade == 3,]
+
+
+
+grade1exp <- survreg(Surv(time,delta)~1, dist = "exponential", data=grade1)
+summary(grade1exp)
+
+grade2exp <- survreg(Surv(time,delta)~1, dist = "exponential", data=grade2)
+summary(grade2exp)
+
+grade3exp <- survreg(Surv(time,delta)~1, dist = "exponential", data=grade3)
+summary(grade3exp)
+```
+
+
+
+5c. the exponential model, test at the α = 0.05 level of significance
+
+Let   H0:h1(t) =h2(t)=h3(t)
+Let   HA: at least one of the grades has different distribution of time to reccurrence
+@ ∝=0.05
+Test statistic
+
+
+```{r}
+gradetest <- survreg(Surv(time,delta)~grade, dist = "exponential", data=ovariancan)
+summary(gradetest)
+```
+
+
+ p-values 
+Since P-value =0.43 is greater than 0.05, we therefore fail to reject the null hypothesis and conclude that there is no significant in distribution of time to  recurrence.
+ the likelihood ratio test
+the likelihood ratio is -410.3
+the Wald test
+
+d.using a Weibull model
+the estimated hazard functions and corresponding 95% confidence intervals.
+```{r}
+library(SurvRegCensCov)
+
+gradeweib <- survreg(Surv(time,delta)~grade, dist = "weibull", data=ovariancan)
+summary(gradeweib)
+
+ConvertWeibull(gradeweib,conf.level = 0.95)
+
+grade1weib <- survreg(Surv(time,delta)~1, dist = "weibull", data=grade1)
+ConvertWeibull(gradeweib,conf.level = 0.95)
+summary(grade1weib)
+
+grade2weib <- survreg(Surv(time,delta)~1, dist = "weibull", data=grade2)
+ConvertWeibull(gradeweib,conf.level = 0.95)
+summary(grade2weib)
+
+grade3weib <- survreg(Surv(time,delta)~1, dist = "weibull", data=grade3)
+ConvertWeibull(gradeweib,conf.level = 0.95)
+summary(grade3weib)
+
+summary(gradeweib$coefficients)
+
+```
+the estimated mean survival time is 4.46887 and the median of the survial time is 4.46887
