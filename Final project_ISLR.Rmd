@@ -1,0 +1,258 @@
+---
+title: "final project"
+author: "Adeola Mary Olaniyan"
+date: "12/9/2020"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(reshape2)
+library(boot)
+library(plotrix)
+library(tree)
+library(ISLR)
+
+library(readr)
+insurance1 <- read_csv("C:/Users/adeol/Downloads/insurance.csv")
+
+
+
+#find the missing value
+sum(is.na(insurance1))
+
+#Boxplot
+library(ggplot2)
+
+boxplot.age<-boxplot(insurance$age, xlab="age", ylab="charges")
+
+plot.sex<-ggplot(data = insurance,mapping=aes(x=sex,y=charges)) + geom_boxplot()
+plot.children<-ggplot(data = insurance,aes(as.factor(children),charges))+ geom_boxplot()
+plot.smoker<-ggplot(data = insurance,mapping=aes(x=smoker,y=charges)) + geom_boxplot()
+plot.region<-ggplot(data = insurance,mapping=aes(x=region,y=charges)) + geom_boxplot()
+
+
+
+
+
+```
+
+
+```{r}
+# Fit Linear regression
+
+fit.insur= lm(charges~ sex + region + bmi + children +smoker+age, data = insurance1)
+summary(fit.insur)
+
+# Model Diagnostics
+par(mfrow=c(2,2))
+plot(fit.insur)
+abline (fit.insur,col= "red")
+```
+
+
+
+```{r}
+
+#.Validation set approach
+set.seed(1)
+train=sample(1338,892)
+train.insur=insurance1[train,]
+dim(train.insur)
+test.insur=insurance1[-train,]
+dim(test.insur)
+lm.tr=lm(charges~ age + sex + region + bmi+smoker+children,data=train.insur)
+mse.test=mean((test.insur$charges-predict(lm.tr,test.insur))^2)
+mse.test
+
+
+```
+
+```{r}
+#. K-fold Cross Validation
+kfolds=5
+folds<-rep_len(1:kfolds,nrow(insurance1))
+mse.cv=rep(0,kfolds)
+for(k in 1:kfolds) {
+  # select a fold to create training and test data
+  fold<-which(folds==k)
+  train.insurance1<-insurance1[-fold,]
+  test.insurance1<- insurance1[fold,]
+  #train your model with data train
+  lm.tr=lm(charges~ age+ sex + region + bmi+children+smoker,data=train.insur)
+  mse.cv[k]=mean((test.insur$charges-predict(lm.tr,test.insur))^2)
+  CV.error.lm = mean(mse.cv)
+}
+CV.error.lm
+
+```
+
+```{r}
+# LOOCV Approach
+
+library(boot)
+set.seed(2)
+chr.lm=glm( charges ~ age+sex+region+bmi+children+smoker,data=insurance1)
+cv.err =cv.glm(insurance1, chr.lm)
+names(cv.err)
+cv.err$delta[1]# 1-fold CV error
+
+```
+
+```{r}
+#predict the insurance in the test data
+age= 34
+sex = 'male'
+region= 'southwest'
+bmi= 29
+children= 1
+smoker= 'no'
+  
+pred = data.frame(age,sex,region, bmi,children,smoker)
+pred
+
+fit.pred= predict(fit.insur,pred, type ="response")
+fit.pred
+
+```
+
+
+```{r}
+# Fitting Multiple regression and calculating prediction error
+#An optimal ensemble regression tree
+
+
+lchr =log(insurance1$charges)
+insurance1= data.frame(insurance1, lchr)
+insurance1= subset(insurance1, select= - charges)
+
+train=sample(1338,892) # Randomly sample 892 items from 1338 items
+train.dat=insurance1[train,]
+test.dat=insurance1[-train,]
+Reg.mod.1= lm(lchr ~ ., data=train.dat)
+test.error= mean(test.dat$lchr - predict(Reg.mod.1, newdata = test.dat, type="response"))^2
+test.error
+
+```
+
+```{r}
+ #Constructing a regression tree based on the training data
+
+tree.insur = tree (lchr ~., data = train.dat)
+summary(tree.insur)
+```
+
+```{r}
+plot(tree.insur)
+text(tree.insur, pretty =0)
+```
+
+```{r}
+cv.insur= cv.tree(tree.insur)
+names(cv.insur)
+par(mfrow= c(1,2))
+plot(cv.insur$size, cv.insur$dev, type = 'b' )
+plot(cv.insur$k, cv.insur$dev, type = 'b')
+cv.insur
+```
+
+```{r}
+prune.insur = prune.tree(tree.insur, best = 4 )
+plot(prune.insur)
+text(prune.insur, pretty = 0)
+```
+
+```{r}
+#Predict with optimal tree and find the prediction error based on test data.
+yhat = predict(prune.insur, newdata = test.dat)
+mean((yhat-test.dat$lchr)^2)
+```
+
+
+```{r}
+#Ensemble
+library(tree)
+
+lchr =log(insurance1$charges)
+insurance1= data.frame(insurance1, lchr)
+insurance1= subset(insurance1, select= - charges)
+
+set.seed(2)
+train=sample(1338,892) # Randomly sample 1338 items from 892 items
+train.dat=insurance1[train,]
+test.dat=insurance1[-train,]
+tree.insur= tree(lchr~., data=train.dat)
+cv.insur=cv.tree(tree.insur)
+plot(cv.insur$size, cv.insur$dev, type = 'b')
+```
+
+
+```{r}
+prune.insur=prune.tree(tree.insur,best=5)
+yhat=predict(prune.insur, newdata=test.dat)
+mean((yhat-test.dat$lchr)^2)
+```
+
+
+```{r}
+#Apply bagging to insurance data
+library(randomForest)
+set.seed(1)
+bag.insur= randomForest(lchr~.,data=train.dat, mtry=5,importance=TRUE)
+bag.insur
+```
+
+```{r}
+#Predict base on test data
+yhat.bag = predict (bag.insur, newdata = test.dat)
+mean((yhat.bag-test.dat$lchr )^2)
+```
+
+```{r}
+#Checking importance features
+importance(bag.insur)
+```
+```{r}
+varImpPlot(bag.insur)
+```
+
+
+```{r}
+#Apply Random Forest to Heart data
+library(randomForest)
+set.seed(12)
+rf.insur= randomForest(lchr~., data=train.dat,mtry=6, importance=TRUE)
+rf.insur
+```
+
+```{r}
+#Predict based on test data
+yhat.rf= predict(rf.insur,newdata=test.dat)
+mean((yhat.rf - test.dat$lchr)^2)
+```
+
+```{r}
+#Check important features
+importance(rf.insur)
+```
+
+```{r}
+varImpPlot(rf.insur)
+```
+
+```{r}
+#Apply boosting algorithm to heart data
+library(gbm)
+set.seed(13)
+boost.insur= gbm(lchr~.,data = train.dat,distribution= "gaussian",n.trees=500, interaction.depth = 6)
+summary(boost.insur)
+```
+
+```{r}
+#Predict based on test data
+yhat.boost= predict(boost.insur, newdata  = test.dat,n.trees=500)
+mean((yhat.boost-test.dat$lchr)^2)
+```
+
+
+
